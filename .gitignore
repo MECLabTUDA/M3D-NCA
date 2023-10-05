@@ -1,0 +1,5 @@
+*.pyc
+*.gif
+runs/
+html/
+M:/Models/*
