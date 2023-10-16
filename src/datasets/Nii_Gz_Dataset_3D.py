@@ -66,7 +66,7 @@ class Dataset_NiiGz_3D(Dataset_3D):
             # TODO: Currently only single volume, no multi phase
             if len(img.shape) == 4:
                 img = img[..., 0]
-            padded = np.random.zeros(*self.size)#np.random.rand(*self.size) * 0.01
+            padded = np.zeros(self.size)#np.random.rand(*self.size) * 0.01
         else:
             padded = np.zeros(self.size)
         img_shape = img.shape

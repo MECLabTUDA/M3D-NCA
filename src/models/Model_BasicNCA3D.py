@@ -27,7 +27,7 @@ class BasicNCA3D(nn.Module):
         padding = int((kernel_size-1) / 2)
 
         self.p0 = nn.Conv3d(channel_n, channel_n, kernel_size=kernel_size, stride=1, padding=padding, padding_mode="reflect", groups=channel_n)
-        self.bn = torch.nn.BatchNorm3d(hidden_size)
+        self.bn = torch.nn.BatchNorm3d(hidden_size, track_running_stats=False)
         
         with torch.no_grad():
             self.fc1.weight.zero_()
