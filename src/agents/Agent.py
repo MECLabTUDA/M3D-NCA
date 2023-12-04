@@ -7,6 +7,7 @@ from src.utils.helper import convert_image
 from src.losses.LossFunctions import DiceLoss
 import seaborn as sns
 import math
+import matplotlib.pyplot as plt
 
 class BaseAgent():
     """Base class for all agents. Handles basic training and only needs to be adapted if special use cases are necessary.
@@ -150,12 +151,12 @@ class BaseAgent():
         #    param_lst.extend(np.fromiter(param.flatten(), dtype=float))
         #self.exp.write_histogram('Model/weights', np.fromiter(param_lst, dtype=float), epoch)
 
-    def getAverageDiceScore(self, useSigmoid=True, tag = "", pseudo_ensemble=False):
+    def getAverageDiceScore(self, useSigmoid=True, tag = "", pseudo_ensemble=False, showResults=False):
         r"""Get the average Dice test score.
             #Returns:
                 return (float): Average Dice score of test set. """
         diceLoss = DiceLoss(useSigmoid=useSigmoid)
-        loss_log = self.test(diceLoss, save_img=[], pseudo_ensemble=pseudo_ensemble)
+        loss_log = self.test(diceLoss, save_img=[], pseudo_ensemble=pseudo_ensemble, showResults=showResults)
 
         return loss_log
 
@@ -225,7 +226,7 @@ class BaseAgent():
     #    self.exp.dataset = dataset_train
 
 
-    def labelVariance(self, images, mean, img_mri, img_id, targets):
+    def labelVariance(self, images, mean, img_mri, img_id, targets, showResults=False):
         r"""Calculate variance over all predictions
             #Args
                 images (torch): The inferences
@@ -242,6 +243,38 @@ class BaseAgent():
             stdd = stdd + img
         stdd = stdd / images.shape[0]
         stdd = np.sqrt(stdd)
+
+        if showResults:
+            #print(img_mri)
+            image1 = img_mri[0, :, img_mri.shape[2] // 2, :, 0]
+            image2 = mean[0, :, mean.shape[2] // 2, :,  0]
+            image3 = stdd[0, :, stdd.shape[2] // 2, :,  0]
+
+            # Set up the matplotlib figure and axes
+            fig, axs = plt.subplots(1, 3, figsize=(10, 5))
+
+            # Display the first image
+            axs[0].imshow(image1, cmap='gray')
+            axs[0].axis('off')  # Turn off axis
+
+            # Display the second image
+            axs[1].imshow(image2, cmap='Purples')
+            axs[1].axis('off')  # Turn off axis
+
+            # Display the second image
+            im = axs[2].imshow(image3)
+            axs[2].axis('off')  # Turn off axis
+
+            plt.colorbar(im, ax=axs[2], fraction=0.046, pad=0.04)
+
+            # Add text below each image
+            axs[0].text(0.5, -0.1, 'Middle image slice', ha='center', va='center', transform=axs[0].transAxes)
+            axs[1].text(0.5, -0.1, 'Mean segmentation before sigmoid', ha='center', va='center', transform=axs[1].transAxes)
+            axs[2].text(0.5, -0.1, 'Variance map', ha='center', va='center', transform=axs[2].transAxes)
+
+            # Adjust layout to prevent overlapping
+            plt.tight_layout()
+            plt.show()
 
         print("NQM Score: ", np.sum(stdd) / np.sum(mean))
 
@@ -271,7 +304,7 @@ class BaseAgent():
 
         return
 
-    def test(self, loss_f, save_img = None, tag='test/img/', pseudo_ensemble=False, **kwargs):
+    def test(self, loss_f, save_img = None, tag='test/img/', pseudo_ensemble=False, showResults=False, **kwargs):
         r"""Evaluate model on testdata by merging it into 3d volumes first
             TODO: Clean up code and write nicer. Replace fixed images for saving in tensorboard.
             #Args
@@ -295,6 +328,7 @@ class BaseAgent():
 
             # For each data sample
             for i, data in enumerate(dataloader):
+                print("__________________________ CASE " + str(i) + " __________________________")
                 data = self.prepare_data(data, eval=True)
                 data_id, inputs, _ = data
                 outputs, targets = self.get_outputs(data, full_img=True, tag="0")
@@ -326,7 +360,7 @@ class BaseAgent():
                         
                         # Calculate mean
                         outputs = torch.mean(stack, dim=0)
-                        self.labelVariance(torch.sigmoid(stack).detach().cpu().numpy(), torch.sigmoid(outputs).detach().cpu().numpy(), inputs.detach().cpu().numpy(), id, targets.detach().cpu().numpy() )
+                        self.labelVariance(torch.sigmoid(stack).detach().cpu().numpy(), torch.sigmoid(outputs).detach().cpu().numpy(), inputs.detach().cpu().numpy(), id, targets.detach().cpu().numpy(), showResults=showResults)
 
                     else:
                         outputs, _ = torch.mean(torch.stack([outputs, outputs2, outputs3, outputs4, outputs5], dim=0), dim=0)
@@ -370,12 +404,12 @@ class BaseAgent():
                     patient_3d_label = targets.detach().cpu()
                     patient_3d_real_Img = inputs.detach().cpu()
                     patient_id = id
-                    print(patient_id)
+                    print('ID:', patient_id)
 
-                    print(patient_3d_image.shape,patient_3d_label.shape )
+                    #print(patient_3d_image.shape,patient_3d_label.shape )
                     for m in range(patient_3d_image.shape[-1]):
                         loss_log[m][patient_id] = 1 - loss_f(patient_3d_image[...,m], patient_3d_label[...,m], smooth = 0).item()
-                        print(",",loss_log[m][patient_id])
+                        print("Dice(", m, "): ", loss_log[m][patient_id], ",")
                         # Add image to tensorboard
                         if True: 
                             if len(patient_3d_label.shape) == 4:
@@ -406,7 +440,7 @@ class BaseAgent():
                         loss_log[m][patient_id] = 1 - loss_f(patient_3d_image[...,m], patient_3d_label[...,m], smooth = 0).item() 
                         out = out + str(loss_log[m][patient_id]) + ", "
                     else:
-                        out = out + " , "
+                        out = out + " , " 
                 print(out)
             # Print dice score per label
             for key in loss_log.keys():
