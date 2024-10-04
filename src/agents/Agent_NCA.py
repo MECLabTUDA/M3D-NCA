@@ -56,7 +56,7 @@ class Agent_NCA(BaseAgent):
                 n_channels (int): Number of channels
         """
         # 2D
-        if( self.exp.dataset.slice != None):
+        if( self.exp.dataset.slice != None or self.exp.get_from_config('2D') == True):
             if len(img.shape) == 3:
                 seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)#torch.from_numpy(np.zeros([img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')], np.float32)).to(self.device)
                 seed[..., :img.shape[3]] = img
@@ -72,7 +72,6 @@ class Agent_NCA(BaseAgent):
             else:
                 seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], img.shape[3], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)#torch.from_numpy(np.zeros([img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')], np.float32)).to(self.device)
                 seed[..., 0:img.shape[-1]] = img 
-
         return seed
 
     def repeatBatch(self, seed, target, batch_duplication):
@@ -104,7 +103,7 @@ class Agent_NCA(BaseAgent):
                 inputs (tensor): Input to model
                 targets (tensor): Target of model
         """
-        id, inputs, targets = data
+        id, inputs, targets = data['id'], data['image'], data['label']
         inputs, targets = inputs.type(torch.FloatTensor), targets.type(torch.FloatTensor)
         inputs, targets = inputs.to(self.device), targets.to(self.device)
         inputs = self.make_seed(inputs)
@@ -112,14 +111,17 @@ class Agent_NCA(BaseAgent):
             if self.exp.get_from_config('Persistence'):
                 inputs = self.pool.getFromPool(inputs, id, self.device)
             inputs, targets = self.repeatBatch(inputs, targets, self.exp.get_from_config('batch_duplication'))
-        return id, inputs, targets
+        
+        data = {'id': id, 'image': inputs, 'label': targets}
+
+        return data
 
     def get_outputs(self, data, full_img=False, **kwargs):
         r"""Get the outputs of the model
             #Args
                 data (int, tensor, tensor): id, inputs, targets
         """
-        id, inputs, targets = data
+        id, inputs, targets = data['id'], data['image'], data['label']
         outputs = self.model(inputs, steps=self.getInferenceSteps(), fire_rate=self.exp.get_from_config('cell_fire_rate'))
         if self.exp.get_from_config('Persistence'):
             if np.random.random() < self.exp.get_from_config('pool_chance'):

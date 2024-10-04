@@ -1,6 +1,8 @@
 *.pyc
+*.png
+*.gif
 runs/
 html/
 M:/Models/*
+Study/
 Models/*
-Study/*

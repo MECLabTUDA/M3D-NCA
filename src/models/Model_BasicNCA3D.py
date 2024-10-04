@@ -67,6 +67,7 @@ class BasicNCA3D(nn.Module):
         if fire_rate is None:
             fire_rate=self.fire_rate
         stochastic = torch.rand([dx.size(0),dx.size(1),dx.size(2), dx.size(3),1])>fire_rate
+        #stochastic = torch.rand([dx.size(0),dx.size(1),dx.size(2), dx.size(3),dx.size(4)])>fire_rate
         stochastic = stochastic.float().to(self.device)
         dx = dx * stochastic
 

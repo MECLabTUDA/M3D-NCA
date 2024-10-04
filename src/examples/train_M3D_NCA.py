@@ -31,7 +31,7 @@ config = [{
     'train_model':1,
     # Data
     'input_size': [(32, 32, 26),(64, 64, 52)], # 
-    'scale_factor': 2,
+    'scaling_factor': 2,
     'data_split': [0.7, 0, 0.3], 
     'keep_original_scale': True,
 }

@@ -9,10 +9,10 @@ import torchio
 class Dataset_NiiGz_3D(Dataset_3D):
     """This dataset is used for all NiiGz 3D datasets. It can handle 3D data on its own, but is also able to split them into slices. """
 
-    def getDataShapes():
+    def getDataShapes(self) -> None:
         return
 
-    def getFilesInPath(self, path):
+    def getFilesInPath(self, path: str) -> dict:
         r"""Get files in path ordered by id and slice
             #Args
                 path (string): The path which should be worked through
@@ -36,16 +36,16 @@ class Dataset_NiiGz_3D(Dataset_3D):
                 dic[id][0] = (f, f, 0)           
         return dic
 
-    def getSlicesOnAxis(self, path, axis):
+    def getSlicesOnAxis(self, path: str, axis: int) -> nib.nifti1:
         return self.load_item(path).shape[axis]
 
-    def load_item(self, path):
+    def load_item(self, path: str) -> nib.nifti1:
         r"""Loads the data of an image of a given path.
             #Args
                 path (String): The path to the nib file to be loaded."""
         return nib.load(path).get_fdata()
 
-    def rotate_image(self, image, angle, label = False):
+    def rotate_image(self, image: np.ndarray, angle: float, label: bool = False) -> np.ndarray:
         image_center = tuple(np.array(image.shape[1::-1]) / 2)
         rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
         if label:
@@ -54,7 +54,7 @@ class Dataset_NiiGz_3D(Dataset_3D):
             result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
         return result
 
-    def preprocessing3d(self, img, isLabel=False):
+    def preprocessing3d(self, img: np.ndarray, isLabel: bool = False) -> np.ndarray:
         r"""Preprocess data to fit the required shape
             #Args
                 img (numpy): Image data
@@ -66,7 +66,7 @@ class Dataset_NiiGz_3D(Dataset_3D):
             # TODO: Currently only single volume, no multi phase
             if len(img.shape) == 4:
                 img = img[..., 0]
-            padded = np.zeros(self.size)#np.random.rand(*self.size) * 0.01
+            padded = np.random.rand(*self.size) * 0.01
         else:
             padded = np.zeros(self.size)
         img_shape = img.shape
@@ -74,7 +74,7 @@ class Dataset_NiiGz_3D(Dataset_3D):
 
         return padded
 
-    def rescale3d(self, img, isLabel=False):
+    def rescale3d(self, img: np.ndarray, isLabel: bool = False) -> np.ndarray:
         r"""Rescale input image to fit training size
             #Args
                 img (numpy): Image data
@@ -83,7 +83,7 @@ class Dataset_NiiGz_3D(Dataset_3D):
                 img (numpy): numpy array
         """
         if len(self.size) == 3:
-            size = (self.size[0], self.size[1])
+            size = (self.size[1], self.size[0])
             size2 = (self.size[2], self.size[0])
         else:
             size = (self.size[0], self.size[1])
@@ -106,7 +106,7 @@ class Dataset_NiiGz_3D(Dataset_3D):
 
         return img_resized
 
-    def patchify(self, img, label):
+    def patchify(self, img: np.ndarray, label: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         r"""Take a patch of the input. This should be used instead of rescaling if global information is not required.
             #Args
                 img (numpy): Image data
@@ -133,8 +133,85 @@ class Dataset_NiiGz_3D(Dataset_3D):
         label = label[pos_x:pos_x+size[0], pos_y:pos_y+size[1], pos_z:pos_z+size[2]]
 
         return img, label
+    
+    def badLabels(self, label: np.ndarray, shifts: tuple = None) -> np.ndarray:
+        r"""Create artifically badly labbelled data
+            #Args
+                label (numpy): Label data
+            #Returns:
+                label (numpy): Label data
+        """
+        if shifts is None:
+            shift_x = random.randint(10, 30)
+            shift_y = random.randint(10, 30)
+            shift_z = random.randint(10, 30)
+            if random.randint(0, 2) == 1:
+                shift_x = shift_x * -1
+            if random.randint(0, 2) == 1:
+                shift_y = shift_y * -1
+            if random.randint(0, 2) == 1:
+                shift_z = shift_z * -1
+        else:
+            shift_x, shift_y, shift_z = shifts
 
-    def __getitem__(self, idx):
+
+        print(shift_x, shift_y, shift_z)
+
+
+        label = np.roll(label, shift_x, axis=0)
+        label = np.roll(label, shift_y, axis=1)
+        label = np.roll(label, shift_z, axis=2)
+
+        return label
+
+
+    def randomReplaceByNoise(self, img: np.ndarray, label: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        r"""Replace parts of the image by noise
+            #Args
+                img (numpy): Image data
+                label (numpy): Label data
+            #Returns:
+                img (numpy): Image data
+                label (numpy): Label data
+        """
+        axis = random.randint(0, 2)
+        side = random.randint(0, 2)
+        slides = random.randint(0, int(img.shape[axis]/3)) 
+
+        if side == 0 or side == 2:
+            if axis == 0:
+                img[0:slides, :, :] = np.random.rand(slides, img.shape[1], img.shape[2]) * 0.01
+            if axis == 1:
+                img[:, 0:slides, :] = np.random.rand(img.shape[0], slides, img.shape[2]) * 0.01
+            if axis == 2:
+                img[:, :, 0:slides] = np.random.rand(img.shape[0], img.shape[1], slides) * 0.01
+        if side == 1 or side == 2:
+            if axis == 0:
+                img[-slides-1:-1, :, :] = np.random.rand(slides, img.shape[1], img.shape[2]) * 0.01
+            if axis == 1:
+                img[:, -slides-1:-1, :] = np.random.rand(img.shape[0], slides, img.shape[2]) * 0.01
+            if axis == 2:
+                img[:, :, -slides-1:-1] = np.random.rand(img.shape[0], img.shape[1], slides) * 0.01
+
+        if side == 0 or side == 2:
+            if axis == 0:
+                label[0:slides, :, :] = 0
+            if axis == 1:
+                label[:, 0:slides, :] = 0
+            if axis == 2:
+                label[:, :, 0:slides] = 0
+        if side == 1 or side == 2:
+            if axis == 0:
+                label[-slides-1:-1, :, :] = 0
+            if axis == 1:
+                label[:, -slides-1:-1, :] = 0
+            if axis == 2:
+                label[:, :, -slides-1:-1] = 0
+
+        return img, label
+        
+
+    def __getitem__(self, idx: str) -> tuple:
         r"""Standard get item function
             #Args
                 idx (int): Id of item to loa
@@ -152,6 +229,21 @@ class Dataset_NiiGz_3D(Dataset_3D):
             label_name, _, _ = self.labels_list[idx]
 
             img, label = self.load_item(os.path.join(self.images_path, img_name)), self.load_item(os.path.join(self.labels_path, img_name))
+
+            # Augmentations
+            if self.augment is not None:
+               # print("AUGMENTATION " + self.augment)
+
+                img_tio = torchio.ScalarImage(tensor=img)
+                if self.augment == "spike":
+                    spike_augmentation = torchio.transforms.RandomSpike(num_spikes=1, intensity=(0.3, 0.3))
+                    img_tio = spike_augmentation(img_tio)
+                else:
+                    raise ValueError("Augmentation not implemented")
+
+                img = img_tio.tensor.numpy()
+
+
             # 2D
             if self.slice is not None:
                 if len(img.shape) == 4:
@@ -183,10 +275,14 @@ class Dataset_NiiGz_3D(Dataset_3D):
                 if len(label.shape) == 3:
                     label = np.expand_dims(label, axis=-1)
             img_id = "_" + str(p_id) + "_" + str(img_id)
-            
-            self.data.set_data(key=self.images_list[idx], data=(img_id, img, label))
-            img = self.data.get_data(key=self.images_list[idx])
+
+            if self.store:
+                self.data.set_data(key=self.images_list[idx], data=(img_id, img, label))
+                img = self.data.get_data(key=self.images_list[idx])
+            else:
+                img = (img_id, img, label)
            
+        
 
         id, img, label = img
 
@@ -206,12 +302,26 @@ class Dataset_NiiGz_3D(Dataset_3D):
         img = rescale(img) 
         img = img[0]
 
-        # Merge labels -> For now single label
-        label[label > 0] = 1
+
+        if self.exp.get_from_config('output_channels') > 1:
+            label = np.eye(self.exp.get_from_config('output_channels')+1)[label.astype(np.int32)].squeeze()
+            label = label[..., 1:label.shape[-1]]
+        else:
+            # Merge labels -> For now single label
+            label[label > 0] = 1
+
 
         # Number of defined channels
         if len(self.size) == 2:
             img = img[..., :self.exp.get_from_config('input_channels')]
             label = label[..., :self.exp.get_from_config('output_channels')]
 
-        return (id, img, label)
+        data_dict = {}
+        data_dict['id'] = id
+        data_dict['image'] = img
+        data_dict['label'] = label
+
+        #print(label.shape)
+
+
+        return data_dict

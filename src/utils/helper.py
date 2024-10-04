@@ -14,6 +14,8 @@ import io
 import datetime
 import nibabel as nib
 import os
+import torch
+import warnings
 
 def dump_pickle_file(file, path):
     r"""Dump pickle file in path
@@ -107,6 +109,66 @@ def visualize_perceptive_range(img, cell_fire_rate=0.5):
 
         img = np.dstack((img_new, img_new, img_new))
 
+    return img
+
+
+def normalize_image(image):
+    image_float = image.to(torch.float32)
+
+    # Normalize the image tensor to be in the range [0, 1]
+    min_val = torch.min(image_float)
+    max_val = torch.max(image_float)
+    normalized = (image_float - min_val) / (max_val - min_val)
+
+    return normalized
+
+def merge_img_label_gt_simplified(img, label, gt, rgb=True):
+    if label.size()[-1] != 1:
+        label = label[..., 0]
+        gt = gt[..., 0]
+        warnings.warn("WARNING: Currently image output supports one label only")
+
+    print(img.shape, label.shape, gt.shape)
+    img = torch.squeeze(img)
+    label = torch.squeeze(label)
+    gt = torch.squeeze(gt)
+
+    if len(img.shape) - len(label.shape) == 1:
+        img = torch.squeeze(img)[..., 0]
+
+    img, label, gt = normalize_image(img), normalize_image(label), normalize_image(gt)
+
+    merged_image = torch.cat((img, label, gt)).numpy()
+    # If 3D
+    if len(img.shape) == 3:
+       merged_image = merged_image[..., merged_image.shape[2]//2]
+    
+    #from matplotlib import pyplot as plt
+    #plt.imshow(merged_image)#outputs_fft[0, 0, :, :].real.detach().cpu().numpy())
+    #plt.show()
+
+    return merged_image
+
+
+def merge_img_label_gt(img, label, gt):
+    img, label, gt = np.squeeze(img), np.squeeze(label), np.squeeze(gt)
+    #imgplot = plt.imshow(label)
+    #plt.show()
+    img = np.stack((img, img, img), axis=-1)
+    label_overlay = np.zeros(img.shape)
+    #print(label_overlay.shape, label.shape)
+    label_overlay[..., 0] = label
+    #label_overlay = np.clip(label_overlay, 0, 1)
+    #print(np.unique(label_overlay))
+    #label_overlay[label_overlay > 0.5] = 1
+    gt_overlay = np.zeros(img.shape)
+    gt_overlay[..., 1] = gt
+    #gt_overlay[gt_overlay > 0.5] = 1
+
+    #print(img.shape, label_overlay.shape, gt_overlay.shape)
+    #img = img #+ label_overlay + gt_overlay
+    img[label_overlay > 0.5] = img[label_overlay > 0.5]*0.5 + label_overlay[label_overlay > 0.5] * 0.5
+    img[gt_overlay > 0] = img[gt_overlay > 0]*0.5 + gt_overlay[gt_overlay > 0] * 0.5
     return img
 
 
@@ -352,3 +414,38 @@ r"""Plot individual patient scores
 """
 def loss_log_to_image(loss_log):
     sns.scatterplot(data=loss_log, x="id", y="Dice")
+
+def merge_config(self, config_parent: dict, config_child: dict) -> None:
+    r"""Merge config with current config
+    """
+    return {**self.config_parent, **config_child}
+
+def rgb_to_onehot(rgb_image):
+    """
+    Convert an RGB image to a one-hot encoded array.
+
+    Parameters:
+    rgb_image (numpy.ndarray): An RGB image of shape (H, W, 3).
+
+    Returns:
+    numpy.ndarray: One-hot encoded array of shape (H, W, N) where N is the number of unique RGB values.
+    """
+    # Step 1: Identify unique labels
+    unique_labels = np.unique(rgb_image.reshape(-1, 3), axis=0)
+
+    # Step 2: Create a mapping from RGB to integer labels
+    label_to_int = {tuple(label): idx for idx, label in enumerate(unique_labels)}
+
+    # Step 3: Initialize a one-hot encoded array
+    one_hot_array = np.zeros((*rgb_image.shape[:2], len(unique_labels)), dtype=int)
+
+    # Step 4: Apply the one-hot encoding
+    for i in range(rgb_image.shape[0]):
+        for j in range(rgb_image.shape[1]):
+            label = tuple(rgb_image[i, j])
+            one_hot_array[i, j, label_to_int[label]] = 1
+
+    if one_hot_array.shape[-1] == 1:
+        one_hot_array[...] = 0
+        return one_hot_array
+    return one_hot_array[..., 1:]

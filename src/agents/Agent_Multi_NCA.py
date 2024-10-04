@@ -5,7 +5,7 @@ import os
 class Agent_Multi_NCA(Agent_NCA):
     """Base functionality for multiple NCAs working in combination
     """
-    def batch_step(self, data, loss_f):
+    def batch_step(self, data: tuple, loss_f: torch.nn.Module) -> dict:
         r"""Execute a single batch training step
             #Args
                 data (tensor, tensor): inputs, targets
@@ -32,7 +32,7 @@ class Agent_Multi_NCA(Agent_NCA):
                 self.scheduler[m].step()
         return loss_ret
 
-    def save_state(self, model_path):
+    def save_state(self, model_path: str) -> None:
         r"""Save state of current model
         """
         os.makedirs(model_path, exist_ok=True)
@@ -43,11 +43,11 @@ class Agent_Multi_NCA(Agent_NCA):
             torch.save(o.state_dict(), os.path.join(model_path, 'optimizer'+ str(id) +'.pth'))
             torch.save(s.state_dict(), os.path.join(model_path, 'scheduler'+ str(id) +'.pth'))
 
-    def load_state(self, model_path):
+    def load_state(self, model_path: str, *args, **kwargs) -> None:
         r"""Load state of current model
         """
         for id, z in enumerate(zip(self.model, self.optimizer, self.scheduler)):
             m, o, s = z
-            m.load_state_dict(torch.load(os.path.join(model_path, 'model'+ str(id) +'.pth')))
-            o.load_state_dict(torch.load(os.path.join(model_path, 'optimizer'+ str(id) +'.pth')))
-            s.load_state_dict(torch.load(os.path.join(model_path, 'scheduler'+ str(id) +'.pth')))
+            m.load_state_dict(torch.load(os.path.join(model_path, 'model'+ str(id) +'.pth'), map_location=self.device))
+            o.load_state_dict(torch.load(os.path.join(model_path, 'optimizer'+ str(id) +'.pth'), map_location=self.device))
+            s.load_state_dict(torch.load(os.path.join(model_path, 'scheduler'+ str(id) +'.pth'), map_location=self.device))

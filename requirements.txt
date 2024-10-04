@@ -1,12 +1,18 @@
-# pip install -r requirements.txt 
-# Python 3.8.4
-numpy
+#__________                   .__                                     __          
+#\______   \ ____  ________ __|__|______  ____   _____   ____   _____/  |_  ______
+# |       _// __ \/ ____/  |  \  \_  __ \/ __ \ /     \_/ __ \ /    \   __\/  ___/
+# |    |   \  ___< <_|  |  |  /  ||  | \|  ___/|  Y Y  \  ___/|   |  \  |  \___ \ 
+# |____|_  /\___  >__   |____/|__||__|   \___  >__|_|  /\___  >___|  /__| /____  >
+#        \/     \/   |__|                    \/      \/     \/     \/          \/ 
+
+#pip install -r requirements.txt 
 opencv-python
 nibabel
 torchio==0.18.82
 matplotlib
 seaborn
-tensorboard
+aim
 gitpython
+pytest
+black
 ipykernel
-unet

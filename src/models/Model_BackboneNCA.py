@@ -5,7 +5,7 @@ from src.models.Model_BasicNCA import BasicNCA
 class BackboneNCA(BasicNCA):
     r"""Implementation of the backbone NCA of Med-NCA
     """
-    def __init__(self, channel_n, fire_rate, device, hidden_size=128, input_channels=1):
+    def __init__(self, channel_n, fire_rate, device, hidden_size=128, input_channels=1, batch_norm = True):
         r"""Init function
             #Args:
                 channel_n: number of channels per cell
@@ -14,7 +14,7 @@ class BackboneNCA(BasicNCA):
                 hidden_size: hidden size of model
                 input_channels: number of input channels
         """
-        super(BackboneNCA, self).__init__(channel_n, fire_rate, device, hidden_size)
+        super(BackboneNCA, self).__init__(channel_n, fire_rate, device, hidden_size, batch_norm=batch_norm)
         self.p0 = nn.Conv2d(channel_n, channel_n, kernel_size=3, stride=1, padding=1, padding_mode="reflect")
         self.p1 = nn.Conv2d(channel_n, channel_n, kernel_size=3, stride=1, padding=1, padding_mode="reflect")
 

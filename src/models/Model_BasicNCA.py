@@ -6,7 +6,7 @@ import torch.nn.functional as F
 class BasicNCA(nn.Module):
     r"""Basic implementation of an NCA using a sobel x and y filter for the perception
     """
-    def __init__(self, channel_n, fire_rate, device, hidden_size=128, input_channels=1, init_method="standard"):
+    def __init__(self, channel_n, fire_rate, device, hidden_size=128, input_channels=1, init_method="standard", batch_norm = True):
         r"""Init function
             #Args:
                 channel_n: number of channels per cell
@@ -21,9 +21,13 @@ class BasicNCA(nn.Module):
         self.device = device
         self.channel_n = channel_n
         self.input_channels = input_channels
+        self.batch_norm = batch_norm
 
         self.fc0 = nn.Linear(channel_n*3, hidden_size)
         self.fc1 = nn.Linear(hidden_size, channel_n, bias=False)
+        
+        if batch_norm:
+            self.bn = torch.nn.BatchNorm2d(hidden_size, track_running_stats=False)
         with torch.no_grad():
             self.fc1.weight.zero_()
 
@@ -63,6 +67,10 @@ class BasicNCA(nn.Module):
         dx = self.perceive(x)
         dx = dx.transpose(1,3)
         dx = self.fc0(dx)
+        if self.batch_norm:
+            dx = dx.transpose(1,3)
+            dx = self.bn(dx)
+            dx = dx.transpose(1,3)
         dx = F.relu(dx)
         dx = self.fc1(dx)
 

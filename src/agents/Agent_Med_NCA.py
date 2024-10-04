@@ -1,17 +1,11 @@
 import torch
 import numpy as np
 from src.agents.Agent_Multi_NCA import Agent_Multi_NCA
+from src.agents.Agent_MedSeg2D import Agent_MedSeg2D
 import random
 import torchio as tio
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-import torch.nn.functional as F
-import matplotlib.animation as animation
-from matplotlib.animation import FuncAnimation
-from IPython.display import display, HTML
-import torchio as tio
 
-class Agent_Med_NCA(Agent_Multi_NCA):
+class Agent_Med_NCA(Agent_Multi_NCA, Agent_MedSeg2D):
     """Med-NCA training agent that uses 2d patches across 2-levels during training to optimize VRAM.
     """
     def initialize(self):
