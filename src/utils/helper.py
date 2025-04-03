@@ -109,6 +109,27 @@ def visualize_perceptive_range(img, cell_fire_rate=0.5):
 
     return img
 
+def merge_img_label_gt(img, label, gt):
+    img, label, gt = np.squeeze(img), np.squeeze(label), np.squeeze(gt)
+    #imgplot = plt.imshow(label)
+    #plt.show()
+    img = np.stack((img, img, img), axis=-1)
+    label_overlay = np.zeros(img.shape)
+    #print(label_overlay.shape, label.shape)
+    label_overlay[..., 0] = label
+    #label_overlay = np.clip(label_overlay, 0, 1)
+    #print(np.unique(label_overlay))
+    #label_overlay[label_overlay > 0.5] = 1
+    gt_overlay = np.zeros(img.shape)
+    gt_overlay[..., 1] = gt
+    #gt_overlay[gt_overlay > 0.5] = 1
+
+    #print(img.shape, label_overlay.shape, gt_overlay.shape)
+    #img = img #+ label_overlay + gt_overlay
+    img[label_overlay > 0.5] = img[label_overlay > 0.5]*0.5 + label_overlay[label_overlay > 0.5] * 0.5
+    img[gt_overlay > 0] = img[gt_overlay > 0]*0.5 + gt_overlay[gt_overlay > 0] * 0.5
+    return img
+
 
 def visualize_all_channels_fast(img, replace_firstImage = None, min=1, max=100, labels = None):
     r"""Visualize all nca channels in a simplified setup

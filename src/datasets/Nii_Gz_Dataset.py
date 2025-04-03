@@ -11,7 +11,7 @@ import random
 class Nii_Gz_Dataset(Dataset_Base):
     r""".. WARNING:: Deprecated, lacks functionality of 3D counterpart. Needs to be updated to be useful again."""
 
-    def getFilesInPath(self, path):
+    def getFilesInPath(self, path: str) -> dict:
         r"""Get files in path ordered by id and slice
             #Args
                 path (string): The path which should be worked through
@@ -27,11 +27,11 @@ class Nii_Gz_Dataset(Dataset_Base):
             dic[id][slice] = f
         return dic
 
-    def __getname__(self, idx):
+    def __getname__(self, idx: str) -> str:
         r"""Get name of item by id"""
         return self.images_list[idx]
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: str) -> tuple:
         r"""Standard get item function
             #Args
                 idx (int): Id of item to loa
@@ -60,11 +60,11 @@ class Nii_Gz_Dataset(Dataset_Base):
 
         return (img_id, img, label)
 
-    def getIdentifier(self, idx):
+    def getIdentifier(self, idx: str) -> str:
         r""".. TODO:: Remove redundancy"""
         return self.__getname__(idx)
 
-    def preprocessing(self, img, label):
+    def preprocessing(self, img: np.ndarray, label: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         r"""Preprocessing of image
             #Args
                 img (numpy): Image to preprocess

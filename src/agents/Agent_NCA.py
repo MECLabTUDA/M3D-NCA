@@ -13,17 +13,6 @@ class Agent_NCA(BaseAgent):
         self.output_channels = self.exp.get_from_config('output_channels')
         self.pool = Pool()
 
-    def loss_noOcillation(self, x, target, freeChange=True):
-        #x = torch.flatten(x)
-        if freeChange:
-            x[x <= 1] = 0
-            loss = x.sum() / torch.numel(x)
-        else:
-            xin_sum = torch.sum(x) + 1
-            x = torch.square(target-x)
-            loss = torch.sum(x) / xin_sum
-        return loss
-
     def save_state(self, model_path):
         r"""Save state - Add Pool to state
         """
@@ -56,7 +45,7 @@ class Agent_NCA(BaseAgent):
                 n_channels (int): Number of channels
         """
         # 2D
-        if( self.exp.dataset.slice != None):
+        if( self.exp.dataset.slice != None or self.exp.get_from_config('2D') == True):
             if len(img.shape) == 3:
                 seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)#torch.from_numpy(np.zeros([img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')], np.float32)).to(self.device)
                 seed[..., :img.shape[3]] = img
@@ -72,7 +61,6 @@ class Agent_NCA(BaseAgent):
             else:
                 seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], img.shape[3], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)#torch.from_numpy(np.zeros([img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')], np.float32)).to(self.device)
                 seed[..., 0:img.shape[-1]] = img 
-
         return seed
 
     def repeatBatch(self, seed, target, batch_duplication):
@@ -87,9 +75,6 @@ class Agent_NCA(BaseAgent):
     def getInferenceSteps(self):
         r"""Get the number of steps for inference, if its set to an array its a random value inbetween
         """
-        #if len(self.exp.get_from_config('inference_steps')) > 1:
-        #    steps = np.random.randint(self.exp.get_from_config('inference_steps')[0], self.exp.get_from_config('inference_steps')[1])
-        #else:
         if type(self.exp.get_from_config('inference_steps')) is list:
             steps = self.exp.get_from_config('inference_steps')
         else:

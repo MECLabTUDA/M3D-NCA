@@ -4,7 +4,7 @@ import torch.nn.functional as F
 class DiceLoss(torch.nn.Module):
     r"""Dice Loss
     """
-    def __init__(self, useSigmoid = True):
+    def __init__(self, useSigmoid: bool = True) -> None:
         r"""Initialisation method of DiceLoss
             #Args:
                 useSigmoid: Whether to use sigmoid
@@ -12,7 +12,7 @@ class DiceLoss(torch.nn.Module):
         self.useSigmoid = useSigmoid
         super(DiceLoss, self).__init__()
 
-    def forward(self, input, target, smooth=1):
+    def forward(self, input: torch.tensor, target: torch.tensor, smooth: float = 1) -> torch.Tensor:
         r"""Forward function
             #Args:
                 input: input array
@@ -31,7 +31,7 @@ class DiceLoss(torch.nn.Module):
 class DiceLoss_mask(torch.nn.Module):
     r"""Dice Loss mask, that only calculates on masked values
     """
-    def __init__(self, useSigmoid = True):
+    def __init__(self, useSigmoid = True) -> None:
         r"""Initialisation method of DiceLoss mask
             #Args:
                 useSigmoid: Whether to use sigmoid
@@ -39,7 +39,7 @@ class DiceLoss_mask(torch.nn.Module):
         self.useSigmoid = useSigmoid
         super(DiceLoss_mask, self).__init__()
 
-    def forward(self, input, target, mask = None, smooth=1):
+    def forward(self, input: torch.Tensor, target: torch.Tensor, mask: torch.Tensor = None, smooth: float=1) -> torch.Tensor:
         r"""Forward function
             #Args:
                 input: input array
@@ -63,7 +63,7 @@ class DiceLoss_mask(torch.nn.Module):
 class DiceBCELoss(torch.nn.Module):
     r"""Dice BCE Loss
     """
-    def __init__(self, useSigmoid = True):
+    def __init__(self, useSigmoid: bool = True) -> None:
         r"""Initialisation method of DiceBCELoss
             #Args:
                 useSigmoid: Whether to use sigmoid
@@ -71,7 +71,7 @@ class DiceBCELoss(torch.nn.Module):
         self.useSigmoid = useSigmoid
         super(DiceBCELoss, self).__init__()
 
-    def forward(self, input, target, smooth=1):
+    def forward(self, input: torch.Tensor, target: torch.Tensor, smooth: float = 1) -> torch.Tensor:
         r"""Forward function
             #Args:
                 input: input array
@@ -92,7 +92,7 @@ class DiceBCELoss(torch.nn.Module):
 class BCELoss(torch.nn.Module):
     r"""BCE Loss
     """
-    def __init__(self, useSigmoid = True):
+    def __init__(self, useSigmoid: bool = True) -> None:
         r"""Initialisation method of DiceBCELoss
             #Args:
                 useSigmoid: Whether to use sigmoid
@@ -100,7 +100,7 @@ class BCELoss(torch.nn.Module):
         self.useSigmoid = useSigmoid
         super(BCELoss, self).__init__()
 
-    def forward(self, input, target, smooth=1):
+    def forward(self, input: torch.Tensor, target: torch.Tensor, smooth: float = 1) -> torch.Tensor:
         r"""Forward function
             #Args:
                 input: input array
@@ -117,7 +117,7 @@ class BCELoss(torch.nn.Module):
 class FocalLoss(torch.nn.Module):
     r"""Focal Loss
     """
-    def __init__(self, gamma=2, eps=1e-7):
+    def __init__(self, gamma: float = 2, eps: float = 1e-7) -> None:
         r"""Initialisation method of DiceBCELoss
             #Args:
                 gamma
@@ -127,7 +127,7 @@ class FocalLoss(torch.nn.Module):
         self.gamma = gamma
         self.eps = eps
 
-    def forward(self, input, target):
+    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         r"""Forward function
             #Args:
                 input: input array
@@ -149,7 +149,7 @@ class FocalLoss(torch.nn.Module):
 class DiceFocalLoss(FocalLoss):
     r"""Dice Focal Loss
     """
-    def __init__(self, gamma=2, eps=1e-7):
+    def __init__(self, gamma: float = 2, eps: float = 1e-7):
         r"""Initialisation method of DiceBCELoss
             #Args:
                 gamma
@@ -159,7 +159,7 @@ class DiceFocalLoss(FocalLoss):
         self.gamma = gamma
         self.eps = eps
 
-    def forward(self, input, target):
+    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         r"""Forward function
             #Args:
                 input: input array
