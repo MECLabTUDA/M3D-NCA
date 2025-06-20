@@ -14,6 +14,8 @@ import io
 import datetime
 import nibabel as nib
 import os
+import torch
+import warnings
 
 def dump_pickle_file(file, path):
     r"""Dump pickle file in path
@@ -69,187 +71,106 @@ def load_json_file(path):
         file =  json.load(input_file)
     return file
 
-def get_img_from_fig(fig, dpi=400, size = (1700, 1700)):
-    r"""Convert figure to img
-        #Args:
-            fig: the figure to convert
-            dpi: the dots per inch when converting
-            size: the preferred output size
-    """
-    buf = io.BytesIO()
 
-    size_inch = fig.get_size_inches()
-    size_inch = size / size_inch
-    dpi = int(min(size_inch))
-    fig.savefig(buf, format="png", dpi=dpi)
-    buf.seek(0)
-    img = buf
-    return img.read()
+def normalize_image(image):
+    image_float = image.to(torch.float32)
 
-def visualize_perceptive_range(img, cell_fire_rate=0.5):
-    r"""Visualize the current perceptive range by replicating the activation
-        #Args:
-            img: the input image
-            cell_fire_rate: the chance a cell is active
-    """
-    if np.max(img) == 0:
-        img[int(img.shape[0] / 2), int(img.shape[1] / 2), :] = 1
-    else:
-        img = img[:, :, 0]
+    # Normalize the image tensor to be in the range [0, 1]
+    min_val = torch.min(image_float)
+    max_val = torch.max(image_float)
+    normalized = (image_float - min_val) / (max_val - min_val)
 
-        x_roll = np.roll(img, 1, axis= 0) + np.roll(img, -1, axis= 0)
-        y_roll = np.roll(x_roll, 1, axis= 1) + np.roll(x_roll, -1, axis= 1)
-        img_new = (img + np.clip(x_roll + y_roll, 0, 1)) 
+    return normalized
 
-        random_array = np.random.rand(img.shape[0], img.shape[1])
-        img_new[random_array < cell_fire_rate] = 0
-        img_new = img + img_new
+def merge_img_label_gt_simplified(img, label, gt, rgb=True):
+    if label.size()[-1] != 1:
+        label = label[..., 0]
+        gt = gt[..., 0]
+        warnings.warn("WARNING: Currently image output supports one label only")
 
-        img = np.dstack((img_new, img_new, img_new))
+    print(img.shape, label.shape, gt.shape)
+    img = torch.squeeze(img)
+    label = torch.squeeze(label)
+    gt = torch.squeeze(gt)
 
+    if len(img.shape) - len(label.shape) == 1:
+        img = torch.squeeze(img)[..., 0]
+
+    img, label, gt = normalize_image(img), normalize_image(label), normalize_image(gt)
+
+    merged_image = torch.cat((img, label, gt)).numpy()
+    # If 3D
+    if len(img.shape) == 3:
+       merged_image = merged_image[..., merged_image.shape[2]//2]
+    
+
+
+    return merged_image
+
+
+def merge_img_label_gt(img, label, gt):
+    if isinstance(img, torch.Tensor):
+        img = img.detach().cpu().numpy()
+        label = label.detach().cpu().numpy()
+        gt = gt.detach().cpu().numpy()
+    img, label, gt = np.squeeze(img), np.squeeze(label), np.squeeze(gt)
+
+    img = np.stack((img, img, img), axis=-1)
+    label_overlay = np.zeros(img.shape)
+
+    label_overlay[..., 0] = label
+
+    gt_overlay = np.zeros(img.shape)
+    gt_overlay[..., 1] = gt
+
+    img[label_overlay > 0.5] = img[label_overlay > 0.5]*0.5 + label_overlay[label_overlay > 0.5] * 0.5
+    img[gt_overlay > 0] = img[gt_overlay > 0]*0.5 + gt_overlay[gt_overlay > 0] * 0.5
     return img
 
+def overlay_sdf_field_nicer(image: torch.Tensor, sdf_field: torch.Tensor) -> np.ndarray:
+    """OVerlays an SDF field over the Input image. Negative values are Coded in blue, positive values in red. 
 
-def visualize_all_channels_fast(img, replace_firstImage = None, min=1, max=100, labels = None):
-    r"""Visualize all nca channels in a simplified setup
-        #Args:
-            img: the input image
-            replace_firstImage: what to replace first image with
-            min: min value
-            max: max value
-            labels: whether to show label overlay
+    Args:
+        imgage (torch.Tensor): 2 or 3D tensor, single phase representing image intensities. 
+            Needs to have a value range between [0, 1]
+        sdf_field (torch.Tensor): SDF field, 2 or 3D, equal size to the image, 
+            accepts values in the range [-1, 1]
+
+    Returns:
+        torch.Tensor: _description_
     """
-    if img.shape[0] == 1:
-        img = img[0]
-    if labels is not None and labels.shape[0] == 1:
-        labels = labels[0]
+    if isinstance(image, torch.Tensor):
+        img: np.ndarray = image.detach().cpu().numpy().squeeze()
+        sdf: np.ndarray = sdf_field.detach().cpu().numpy().squeeze()
+    else:
+        img = image
+        sdf = sdf_field
+    img = np.clip(a=img, a_min=0, a_max=1)
+    sdf = np.clip(a=sdf, a_min=-1, a_max=1)
+    img = np.stack((img, img, img), axis=-1)
+    def sigm(arr: np.ndarray) -> np.ndarray:
+        return 1/(1+np.exp(arr*(-1)))
+    sdf_color_field = np.stack((sdf, sdf, sdf), axis=-1)
+    sdf_color_field[..., 2] = 0.0
+    g_pos = sdf_color_field[..., 1]
+    t = sigm(sdf_color_field[..., 1]*4)
+    g_pos[t>0] = t[t > 0]
+    t = sigm(sdf_color_field[..., 1]*8)
+    g_pos[t<0] = t[t<0]
+    sdf_color_field[..., 1] = g_pos
+    r_neg = 1 - sdf_color_field[..., 0]
+    t = sigm((1-sdf_color_field[..., 0])*4)
+    r_neg[t>0] = t[t>0]
+    t = sigm((1-sdf_color_field[..., 0])*8)
+    r_neg[t<0] = t[t<0]
+    sdf_color_field[..., 0] = r_neg
+    img = img*0.5 + sdf_color_field*0.5
+    return img
 
-    tiles = int(math.ceil(math.sqrt(img.shape[2])))
-    img_x = img.shape[0]
-    img_y = img.shape[1]
-
-    img_all_channels = np.zeros((img_x*tiles, img_y*tiles))
-    for tile_pos in range(img.shape[2]):
-        tile = img[:,:,tile_pos]
-        x = tile_pos%tiles
-        y = int(math.floor(tile_pos/tiles))
-        if tile_pos < 3:
-            tile = tile
-
-        img_all_channels[x*img_x:(x+1)*img_x, y*img_y:(y+1)*img_y] = tile
-
-        tile_pos_lab = tile_pos -3
-        if labels is not None and labels.shape[2] > tile_pos_lab and tile_pos_lab > 0:
-            tile_label = labels[:,:,tile_pos_lab]
-
-            gx_m1, gy_m1 = np.gradient(tile_label)
-            tile_label = gy_m1 * gy_m1 + gx_m1 * gx_m1
-            tile_label[tile_label != 0.0] = 1
-            img_all_channels[x*img_x:(x+1)*img_x, y*img_y:(y+1)*img_y][tile_label == 1] = 1000
-
-    img_all_channels_blue = img_all_channels.copy()
-    img_all_channels_blue[img_all_channels_blue!=0] = 0
-
-    img_all_channels_red = img_all_channels.copy()
-    img_all_channels_red[img_all_channels_red > 0] = 0
-
-    img_all_channels_green = img_all_channels.copy()
-    img_all_channels_green[img_all_channels_green < 0] = 0
-
-
-    img_all_channels_red = img_all_channels_red * -1
-    img_all_channels_red[img_all_channels_red <= min] = (img_all_channels_red[img_all_channels_red <= min] / min) * 0.5
-    img_all_channels_red[img_all_channels_red > min] = np.log(img_all_channels_red[img_all_channels_red > min]) / np.log(max) + 0.5
-
-    img_all_channels_green[img_all_channels_green <= min] = (img_all_channels_green[img_all_channels_green <= min] / min) * 0.5
-    img_all_channels_green[img_all_channels_green > min] = np.log(img_all_channels_green[img_all_channels_green > min]) / np.log(max) + 0.5
-
-
-    img_all_channels = np.stack([img_all_channels_blue, img_all_channels_green, img_all_channels_red], axis=2)
-
-    max = np.max(img_all_channels)   
-    min = np.min(img_all_channels)
-
-    if replace_firstImage is not None:
-        img_all_channels[0:img_x, 0:img_y, :] = replace_firstImage
- 
-    return img_all_channels
-
-
-
-def visualize_all_channels(img, replace_firstImage = None, divide_by=3, labels = None, color_map="nipy_spectral", size = (1700, 1700)):
-    r"""Visualize all nca channels in a nicer but slower setup (interactive vs recording)
-        #Args:
-            img: the input image
-            replace_firstImage: what to replace first image with
-            min: min value
-            max: max value
-            labels: whether to show label overlay
-    """
-    if img.shape[0] == 1:
-        img = img[0]
-    if labels is not None and labels.shape[0] == 1:
-        labels = labels[0]
-
-    tiles = int(math.ceil(math.sqrt(img.shape[2])))
-    img_x = img.shape[0]
-    img_y = img.shape[1]
-
-    print("MEASURE TIME")
-    time_a = datetime.datetime.now()
-
-    img_all_channels = np.zeros((img_x*tiles, img_y*tiles))
-    for tile_pos in range(img.shape[2]):
-        tile = img[:,:,tile_pos]
-        x = tile_pos%tiles
-        y = int(math.floor(tile_pos/tiles))
-        if tile_pos < 3:
-            tile = tile
-
-        img_all_channels[x*img_x:(x+1)*img_x, y*img_y:(y+1)*img_y] = tile
-
-        tile_pos_lab = tile_pos -3
-        if labels is not None and labels.shape[2] > tile_pos_lab and tile_pos_lab > 0:
-            tile_label = labels[:,:,tile_pos_lab]
-
-            gx_m1, gy_m1 = np.gradient(tile_label)
-            tile_label = gy_m1 * gy_m1 + gx_m1 * gx_m1
-            tile_label[tile_label != 0.0] = 1
-            img_all_channels[x*img_x:(x+1)*img_x, y*img_y:(y+1)*img_y][tile_label == 1] = 1000
-
-    time_b = datetime.datetime.now()
-    print((time_b - time_a).microseconds)
     
-    if np.min(size) != 0:
-        figsize_def = (10, int(10*size[1]/size[0]))
-        print(figsize_def)
-    else: 
-        figsize_Def = (2,1)
-    fig, axes = plt.subplots(figsize=figsize_def)
-    pos = axes.imshow(img_all_channels, norm=colors.SymLogNorm(linthresh=0.3, linscale=0.3,
-                                              vmin=-10.0, vmax=10.0), cmap=color_map)#cmap='RdBu', aspect='auto', vmin=-100, vmax=100)
-    
-    divider = make_axes_locatable(axes)
-    cax = divider.append_axes("right", size="5%", pad = 0.05)
-
-    axes.margins(x= 0, y=0)
-
-    fig.colorbar(pos, cax=cax)
-    
-    fig.canvas.draw()
-
-    time_c = datetime.datetime.now()
-
-    print((time_c - time_b).microseconds)
-    print(fig)
-
-    return fig 
-
 def convert_image(img, prediction, label=None, encode_image=True):
     r"""Convert an image plus an optional label into one image that can be dealt with by Pillow and similar to display
-        TODO: Write nicely and optmiize output, currently only for displaying intermediate results
-        #Args
-
+       
             """
     img_rgb = img 
     img_rgb = img_rgb - np.amin(img_rgb)
@@ -329,26 +250,3 @@ def encode(img_rgb, size=(150, 100)):
     img_rgb = cv2.resize(img_rgb, dsize=scale, interpolation=cv2.INTER_NEAREST)
     img_rgb = cv2.imencode(".png", img_rgb)[1].tobytes()
     return img_rgb
-
-def saveNiiGz(self, output, label, patient_id, path):
-    r"""Save NiiGz file
-        #Args:
-            output: the image / output of nca
-            label: the label of the image
-            patient_id: the patient id
-            path: the path to save file in 
-    """
-    output = np.round(output.cpu().detach().numpy())
-    output[output < 0] = 0
-    output[output > 0] = 1
-    nib_image = nib.Nifti1Image(output, np.eye(4))
-    nib_label = nib.Nifti1Image(label.cpu().detach().numpy(), np.eye(4))
-    nib.save(nib_image, os.path.join(path, patient_id + "_image.nii.gz"))  
-    nib.save(nib_label, os.path.join(path, patient_id + "_label.nii.gz"))  
-    
-
-r"""Plot individual patient scores
-    TODO: 
-"""
-def loss_log_to_image(loss_log):
-    sns.scatterplot(data=loss_log, x="id", y="Dice")

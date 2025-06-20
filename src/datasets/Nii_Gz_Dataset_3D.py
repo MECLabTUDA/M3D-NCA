@@ -22,6 +22,9 @@ class Dataset_NiiGz_3D(Dataset_3D):
         dir_files = os.listdir(os.path.join(path))
         dic = {}
         for id_f, f in enumerate(dir_files):
+            print(os.path.basename(f))
+            if os.path.basename(f).startswith('.'):
+                continue
             id = f
             # 2D 
             if self.slice is not None:
@@ -66,7 +69,7 @@ class Dataset_NiiGz_3D(Dataset_3D):
             # TODO: Currently only single volume, no multi phase
             if len(img.shape) == 4:
                 img = img[..., 0]
-            padded = np.zeros(self.size)#np.random.rand(*self.size) * 0.01
+            padded = np.random.rand(*self.size) * 0.01
         else:
             padded = np.zeros(self.size)
         img_shape = img.shape
@@ -133,6 +136,83 @@ class Dataset_NiiGz_3D(Dataset_3D):
         label = label[pos_x:pos_x+size[0], pos_y:pos_y+size[1], pos_z:pos_z+size[2]]
 
         return img, label
+    
+    def badLabels(self, label, shifts=None):
+        r"""Create artifically badly labbelled data
+            #Args
+                label (numpy): Label data
+            #Returns:
+                label (numpy): Label data
+        """
+        if shifts is None:
+            shift_x = random.randint(10, 30)
+            shift_y = random.randint(10, 30)
+            shift_z = random.randint(10, 30)
+            if random.randint(0, 2) == 1:
+                shift_x = shift_x * -1
+            if random.randint(0, 2) == 1:
+                shift_y = shift_y * -1
+            if random.randint(0, 2) == 1:
+                shift_z = shift_z * -1
+        else:
+            shift_x, shift_y, shift_z = shifts
+
+
+        print(shift_x, shift_y, shift_z)
+
+
+        label = np.roll(label, shift_x, axis=0)
+        label = np.roll(label, shift_y, axis=1)
+        label = np.roll(label, shift_z, axis=2)
+
+        return label
+
+
+    def randomReplaceByNoise(self, img, label):
+        r"""Replace parts of the image by noise
+            #Args
+                img (numpy): Image data
+                label (numpy): Label data
+            #Returns:
+                img (numpy): Image data
+                label (numpy): Label data
+        """
+        axis = random.randint(0, 2)
+        side = random.randint(0, 2)
+        slides = random.randint(0, int(img.shape[axis]/3)) 
+
+        if side == 0 or side == 2:
+            if axis == 0:
+                img[0:slides, :, :] = np.random.rand(slides, img.shape[1], img.shape[2]) * 0.01
+            if axis == 1:
+                img[:, 0:slides, :] = np.random.rand(img.shape[0], slides, img.shape[2]) * 0.01
+            if axis == 2:
+                img[:, :, 0:slides] = np.random.rand(img.shape[0], img.shape[1], slides) * 0.01
+        if side == 1 or side == 2:
+            if axis == 0:
+                img[-slides-1:-1, :, :] = np.random.rand(slides, img.shape[1], img.shape[2]) * 0.01
+            if axis == 1:
+                img[:, -slides-1:-1, :] = np.random.rand(img.shape[0], slides, img.shape[2]) * 0.01
+            if axis == 2:
+                img[:, :, -slides-1:-1] = np.random.rand(img.shape[0], img.shape[1], slides) * 0.01
+
+        if side == 0 or side == 2:
+            if axis == 0:
+                label[0:slides, :, :] = 0
+            if axis == 1:
+                label[:, 0:slides, :] = 0
+            if axis == 2:
+                label[:, :, 0:slides] = 0
+        if side == 1 or side == 2:
+            if axis == 0:
+                label[-slides-1:-1, :, :] = 0
+            if axis == 1:
+                label[:, -slides-1:-1, :] = 0
+            if axis == 2:
+                label[:, :, -slides-1:-1] = 0
+
+        return img, label
+        
 
     def __getitem__(self, idx):
         r"""Standard get item function

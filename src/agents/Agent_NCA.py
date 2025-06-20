@@ -14,7 +14,7 @@ class Agent_NCA(BaseAgent):
         self.pool = Pool()
 
     def loss_noOcillation(self, x, target, freeChange=True):
-        #x = torch.flatten(x)
+
         if freeChange:
             x[x <= 1] = 0
             loss = x.sum() / torch.numel(x)
@@ -31,10 +31,10 @@ class Agent_NCA(BaseAgent):
         if self.pool.__len__() != 0 and self.exp.get_from_config('save_pool'):
             dump_compressed_pickle_file(self.pool, os.path.join(model_path, 'pool.pbz2'))
 
-    def load_state(self, model_path):
+    def load_state(self, model_path, device: str = ""):
         r"""Load state - Add Pool to state
         """
-        super().load_state(model_path)
+        super().load_state(model_path, device=device)
         if os.path.exists(os.path.join(model_path, 'pool.pbz2')):
             self.pool = load_compressed_pickle_file(os.path.join(model_path, 'pool.pbz2'))
 
@@ -50,7 +50,7 @@ class Agent_NCA(BaseAgent):
         return target
 
     def make_seed(self, img):
-        r"""Create a seed for the NCA - TODO: Currently only 0 input
+        r"""Create a seed for the NCA
             #Args
                 shape ([int, int]): height, width shape
                 n_channels (int): Number of channels
@@ -58,19 +58,19 @@ class Agent_NCA(BaseAgent):
         # 2D
         if( self.exp.dataset.slice != None):
             if len(img.shape) == 3:
-                seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)#torch.from_numpy(np.zeros([img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')], np.float32)).to(self.device)
+                seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)
                 seed[..., :img.shape[3]] = img
             else:
-                seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)#torch.from_numpy(np.zeros([img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')], np.float32)).to(self.device)
+                seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)
                 seed[..., 0:img.shape[-1]] = img 
 
         # 3D
         else:
             if len(img.shape) == 4:
-                seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], img.shape[3], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)#torch.from_numpy(np.zeros([img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')], np.float32)).to(self.device)
+                seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], img.shape[3], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)
                 seed[..., 0] = img  
             else:
-                seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], img.shape[3], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)#torch.from_numpy(np.zeros([img.shape[0], img.shape[1], img.shape[2], self.exp.get_from_config('channel_n')], np.float32)).to(self.device)
+                seed = torch.zeros((img.shape[0], img.shape[1], img.shape[2], img.shape[3], self.exp.get_from_config('channel_n')), dtype=torch.float32, device=self.device)
                 seed[..., 0:img.shape[-1]] = img 
 
         return seed
@@ -87,9 +87,7 @@ class Agent_NCA(BaseAgent):
     def getInferenceSteps(self):
         r"""Get the number of steps for inference, if its set to an array its a random value inbetween
         """
-        #if len(self.exp.get_from_config('inference_steps')) > 1:
-        #    steps = np.random.randint(self.exp.get_from_config('inference_steps')[0], self.exp.get_from_config('inference_steps')[1])
-        #else:
+
         if type(self.exp.get_from_config('inference_steps')) is list:
             steps = self.exp.get_from_config('inference_steps')
         else:

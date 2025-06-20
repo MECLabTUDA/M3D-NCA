@@ -54,7 +54,7 @@ class Agent_M3D_NCA(Agent_Multi_NCA):
         # After training run inference on full image
         if full_img == True:
 
-            # REFACTOR: Visualisation
+
             save4d = False
             slice_all_Channels = False
             if not slice_all_Channels:
@@ -65,7 +65,7 @@ class Agent_M3D_NCA(Agent_Multi_NCA):
                 label_mri_4d = np.empty((sum(self.getInferenceSteps()), inputs.shape[1]*x_size, inputs.shape[2]*x_size,1), dtype=float)
                 img_mri_4d = np.empty((sum(self.getInferenceSteps()), inputs.shape[1]*x_size, inputs.shape[2]*x_size,1), dtype=float)
             step = 0
-            # -------------------------
+
             
             with torch.no_grad():
                 # Start with low res lvl and go to high res level
@@ -75,7 +75,7 @@ class Agent_M3D_NCA(Agent_Multi_NCA):
                             stp = self.getInferenceSteps()[m]
                         else:
                             stp = self.getInferenceSteps()
-                        # REFACTOR: Visualisation
+
                         if save4d:
                             outputs = inputs_loc
                             for i in range(self.getInferenceSteps()[m]):
@@ -97,7 +97,7 @@ class Agent_M3D_NCA(Agent_Multi_NCA):
                     else:
                         up = torch.nn.Upsample(scale_factor=scale_fac, mode='nearest')
 
-                        # REFACTOR: Visualisation
+
                         if save4d:
                             outputs = inputs_loc
                             for i in range(self.getInferenceSteps()[m]):
@@ -160,13 +160,13 @@ class Agent_M3D_NCA(Agent_Multi_NCA):
                         stp = self.getInferenceSteps()
                     outputs = self.model[m](inputs_loc, steps=stp, fire_rate=self.exp.get_from_config('cell_fire_rate'))
                 else:
-                    # Create higher res image for next level -> Replace with single downscaling step
+                    # Create higher res image for next level 
                     next_res = full_res
                     for i in range(self.exp.get_from_config('train_model') - (m +1)):
                         next_res = next_res.transpose(1,4)
                         next_res = max_pool(next_res)
                         next_res = next_res.transpose(1,4)
-                    # Create higher res groundtruth for next level -> Replace with single downscaling step
+                    # Create higher res groundtruth for next level
                     next_res_gt = full_res_gt
                     for i in range(self.exp.get_from_config('train_model') - (m +1)):
                         next_res_gt = next_res_gt.transpose(1,4)

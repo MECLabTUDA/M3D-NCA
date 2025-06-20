@@ -1,7 +1,15 @@
 import os
 import torch
 from src.utils.helper import dump_json_file, load_json_file, dump_pickle_file, load_pickle_file
-from torch.utils.tensorboard import SummaryWriter
+
+from src.utils.ProjectConfiguration import ProjectConfiguration as pc
+#from aim import Run, Image, Figure, Distribution
+import numpy as np
+from aim import Run
+from PIL import Image as PILImage
+import git
+import cv2
+from typing import List
 
 class Experiment():
     r"""This class handles:
@@ -42,6 +50,14 @@ class Experiment():
         if 'output_channels' not in self.projectConfig[0]:
             self.projectConfig[0]['output_channels'] = 1
 
+        # Basic Configs
+        if 'model_path' not in self.projectConfig[0]:
+            self.projectConfig[0]['model_path'] = os.path.join(pc.STUDY_PATH, 'Experiments', self.projectConfig[0]['name'])
+        # Git hash
+        repo = git.Repo(search_parent_directories=True)
+        sha = repo.head.object.hexsha
+        self.projectConfig[0]['git_hash'] = sha
+        
     def setup(self):
         r"""Initial experiment setup when first started
         """
@@ -49,6 +65,11 @@ class Experiment():
         os.makedirs(self.config['model_path'], exist_ok=True)
         os.makedirs(os.path.join(self.config['model_path'], 'models'), exist_ok=True)
         os.makedirs(os.path.join(self.get_from_config('model_path'), 'tensorboard', os.path.basename(self.get_from_config('model_path'))), exist_ok=True)
+        # Create Run
+        self.run = Run(experiment=self.config['name'], repo=os.path.join(pc.STUDY_PATH, 'Aim'))
+        self.projectConfig[0]['hash'] = self.run.hash
+        self.run['hparams'] = self.config
+
         # Create basic configuration
         self.data_split = self.new_datasplit()
         dump_pickle_file(self.data_split, os.path.join(self.config['model_path'], 'data_split.dt'))
@@ -74,12 +95,19 @@ class Experiment():
 
     def reload(self):
         r"""Reload old experiment to continue training
-            TODO: Add functionality to load any previous saved step
+
         """
-        # TODO: Proper reload
+
         print(os.path.join(self.config['model_path'], 'data_split.dt'))
+
         self.data_split = load_pickle_file(os.path.join(self.config['model_path'], 'data_split.dt'))
         self.projectConfig = load_json_file(os.path.join(self.config['model_path'], 'config.dt'))
+
+        if not isinstance(self.projectConfig, List):
+            self.projectConfig = [self.projectConfig]
+        # Find most recent Experiment with name and reload
+        self.run = Run(run_hash=self.projectConfig[0]['hash'], experiment=self.config['name'], repo=os.path.join(pc.STUDY_PATH, 'Aim'))
+
         self.config = self.projectConfig[0]
         model_path = os.path.join(self.config['model_path'], 'models', 'epoch_' + str(self.currentStep))
         print(model_path)
@@ -99,11 +127,9 @@ class Experiment():
         """
         self.currentStep = self.current_step()
         self.set_size()
-        self.writer = SummaryWriter(log_dir=os.path.join(self.get_from_config('model_path'), 'tensorboard', os.path.basename(self.get_from_config('model_path'))))
+
         self.set_current_config()
         self.agent.set_exp(self)
-        if self.currentStep == 0:
-            self.write_text('config', str(self.projectConfig), 0)
 
         if self.get_from_config('unlock_CPU') is None or self.get_from_config('unlock_CPU') is False:
             print('In basic configuration threads are limited to 1 to limit CPU usage on shared Server. Add \'unlock_CPU:True\' to config to disable that.')
@@ -112,14 +138,14 @@ class Experiment():
 
     def reload_model(self):
         r"""Reload model
-            TODO: Move to a more logical position. Probably to the model and then call directly from the agent
+
         """
         model_path = os.path.join(self.config['model_path'], 'models', 'epoch_' + str(self.currentStep), 'model.pth')
         if os.path.exists(model_path):
             self.agent.load_model(model_path)
 
     def save_model(self):
-        r"""TODO: Same as for reload -> move to better location
+        r"""
         """
         model_path = os.path.join(self.config['model_path'], 'models', 'epoch_' + str(self.currentStep+1))
         os.makedirs(model_path, exist_ok=True)
@@ -135,19 +161,10 @@ class Experiment():
                 return maxDir
         return 0
 
-    def set_model_state(self, state: str) -> None:
-        r"""TODO: remove? """
-        self.model_state = state
+    def set_model_state(self, state):
+
         self.dataset.setPaths(self.config['img_path'], self.data_split.get_images(state), self.config['label_path'], self.data_split.get_labels(state))
         self.dataset.setState(state)
-
-        models = [self.model] if not isinstance(self.model, list) else self.model
-        for m in models:
-            if self.model_state == "train":
-                m.train()
-            else:
-                m.eval()
-
         
     def get_from_config(self, tag):
         r"""Get from config
@@ -177,18 +194,38 @@ class Experiment():
         self.set_current_config()
 
     def get_current_config(self):
-        r"""TODO: remove?"""
+
         return self.config
 
     def write_scalar(self, tag, value, step):
         r"""Write scalars to tensorboard
         """
-        self.writer.add_scalar(tag, value, step)
+
+        
+        self.run.track(step=step, value=value, name=tag)
 
     def write_img(self, tag, image, step):
         r"""Write an image to tensorboard
         """
-        self.writer.add_image(tag, image, step, dataformats='HWC')
+        
+
+        image= np.squeeze(image)
+        print(image.shape)
+        image = PILImage.fromarray(np.uint8(image*255)).convert('RGB')
+
+        aim_image = Image(image=image, optimize=True, quality=50)
+        self.run.track(step=step, value=aim_image, name=tag)
+
+    def write_img2(self, tag, image, step):
+        r"""Write an image to tensorboard
+        """
+
+        image= np.squeeze(image)
+        print(image.shape)
+        rgb_array = cv2.cvtColor(np.uint8(image*255), cv2.COLOR_BGRA2RGB)
+        image = PILImage.fromarray(rgb_array, mode='RGB')
+        aim_image = Image(image=image, optimize=True, quality=50)
+        self.run.track(step=step, value=aim_image, name=tag)
 
     def write_text(self, tag, text, step):
         r"""Write text to tensorboard
@@ -198,12 +235,16 @@ class Experiment():
     def write_histogram(self, tag, data, step):
         r"""Write data as histogram to tensorboard
         """
-        self.writer.add_histogram(tag, data, step)
+        data = Distribution(data)
+        self.run.track(step=step, value=data, name=tag)
+
 
     def write_figure(self, tag, figure, step):
         r"""Write a figure to tensorboard images
         """
-        self.writer.add_figure(tag, figure, step)
+        figure = Figure(figure)
+        self.run.track(step=step, value=figure, name=tag)
+
 
 
 class DataSplit():

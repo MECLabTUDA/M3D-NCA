@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
- 
+
 class BasicNCA3D(nn.Module):
     def __init__(self, channel_n, fire_rate, device, hidden_size=128, input_channels=1, init_method="standard", kernel_size=7, groups=False):
         r"""Init function
@@ -27,7 +27,7 @@ class BasicNCA3D(nn.Module):
         padding = int((kernel_size-1) / 2)
 
         self.p0 = nn.Conv3d(channel_n, channel_n, kernel_size=kernel_size, stride=1, padding=padding, padding_mode="reflect", groups=channel_n)
-        self.bn = torch.nn.BatchNorm3d(hidden_size, track_running_stats=False)
+        self.bn = torch.nn.BatchNorm3d(hidden_size)
         
         with torch.no_grad():
             self.fc1.weight.zero_()
@@ -75,7 +75,7 @@ class BasicNCA3D(nn.Module):
         x = x.transpose(1,4)
 
         return x
-
+    
     def forward(self, x, steps=10, fire_rate=0.5):
         r"""Forward function applies update function s times leaving input channels unchanged
             #Args:
@@ -84,6 +84,6 @@ class BasicNCA3D(nn.Module):
                 fire_rate: random activation rate of each cell
         """
         for step in range(steps):
-            x2 = self.update(x, fire_rate).clone() #[...,3:][...,3:]
+            x2 = self.update(x, fire_rate).clone()
             x = torch.concat((x[...,0:self.input_channels], x2[...,self.input_channels:]), 4)
         return x

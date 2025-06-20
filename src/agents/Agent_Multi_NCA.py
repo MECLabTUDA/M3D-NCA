@@ -43,11 +43,18 @@ class Agent_Multi_NCA(Agent_NCA):
             torch.save(o.state_dict(), os.path.join(model_path, 'optimizer'+ str(id) +'.pth'))
             torch.save(s.state_dict(), os.path.join(model_path, 'scheduler'+ str(id) +'.pth'))
 
-    def load_state(self, model_path):
+    def load_state(self, model_path, device: str = ""):
         r"""Load state of current model
         """
         for id, z in enumerate(zip(self.model, self.optimizer, self.scheduler)):
             m, o, s = z
-            m.load_state_dict(torch.load(os.path.join(model_path, 'model'+ str(id) +'.pth')))
-            o.load_state_dict(torch.load(os.path.join(model_path, 'optimizer'+ str(id) +'.pth')))
-            s.load_state_dict(torch.load(os.path.join(model_path, 'scheduler'+ str(id) +'.pth')))
+            if device != "":
+                print(os.path.join(model_path, 'model'+ str(id) +'.pth'))
+                m.load_state_dict(torch.load(os.path.join(model_path, 'model'+ str(id) +'.pth'), map_location=device))
+                o.load_state_dict(torch.load(os.path.join(model_path, 'optimizer'+ str(id) +'.pth'), map_location=device))
+                s.load_state_dict(torch.load(os.path.join(model_path, 'scheduler'+ str(id) +'.pth'), map_location=device))
+            else:
+                m.load_state_dict(torch.load(os.path.join(model_path, 'model'+ str(id) +'.pth')))
+                o.load_state_dict(torch.load(os.path.join(model_path, 'optimizer'+ str(id) +'.pth')))
+                s.load_state_dict(torch.load(os.path.join(model_path, 'scheduler'+ str(id) +'.pth')))
+            
